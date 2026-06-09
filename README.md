@@ -111,6 +111,7 @@ src/
 │   ├── Index.tsx      # Home — create or enter a claim code
 │   ├── CreateGift.tsx # Build and fund gift envelopes
 │   ├── ClaimGift.tsx  # Solve the puzzle and claim a gift
+│   ├── MyGifts.tsx    # List your gifts and refund after the deadline
 │   └── NotFound.tsx
 └── App.tsx            # Routes and providers
 ```
@@ -126,8 +127,9 @@ src/
 4. **Recipients** open the claim link, unscramble the secret word, connect a
    wallet, and submit a claim transaction that spends the envelopes to their
    address (the validator checks `sha2_256(answer) == secret_hash`).
-5. **Refund:** after the deadline, the owner can reclaim any unclaimed
-   envelopes.
+5. **Refund:** the **My Gifts** page lists the gifts you created (discovered
+   from chain state by matching the datum's `owner`), and lets you reclaim any
+   unclaimed envelopes once the deadline has passed.
 
 The on-chain logic lives in [`contracts/`](./contracts); the off-chain
 transaction building (lock / claim / refund) lives in
