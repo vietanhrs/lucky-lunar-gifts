@@ -8,6 +8,7 @@ import { WalletProvider } from "@/contexts/WalletContext";
 import Index from "./pages/Index";
 import CreateGift from "./pages/CreateGift";
 import ClaimGift from "./pages/ClaimGift";
+import MyGifts from "./pages/MyGifts";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/create" element={<CreateGift />} />
               <Route path="/claim" element={<ClaimGift />} />
+              <Route path="/my-gifts" element={<MyGifts />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

@@ -1,6 +1,7 @@
 import {
   type BrowserWallet,
   deserializeAddress,
+  deserializeDatum,
   mConStr0,
   mConStr1,
   SLOT_CONFIG_NETWORK,
@@ -100,24 +101,84 @@ export interface GiftEnvelopes {
   totalLovelace: bigint;
 }
 
-function sumLovelace(utxos: UTxO[]): bigint {
+function lovelaceOf(utxo: UTxO): bigint {
   let total = 0n;
-  for (const u of utxos) {
-    for (const a of u.output.amount) {
-      if (a.unit === "lovelace") total += BigInt(a.quantity);
-    }
+  for (const a of utxo.output.amount) {
+    if (a.unit === "lovelace") total += BigInt(a.quantity);
   }
   return total;
 }
 
-/** Find the still-unclaimed envelope UTxOs for a gift (those produced by its
- *  lock transaction and still sitting at the script address). */
-export async function getGiftEnvelopes(code: string): Promise<GiftEnvelopes> {
-  const { t: lockTxHash } = decodeGiftCode(code);
+function sumLovelace(utxos: UTxO[]): bigint {
+  return utxos.reduce((total, u) => total + lovelaceOf(u), 0n);
+}
+
+/** Envelope UTxOs produced by a given lock transaction and still sitting at the
+ *  script address (i.e. not yet claimed or refunded). */
+async function fetchEnvelopesByTx(lockTxHash: string): Promise<UTxO[]> {
   const provider = getProvider();
   const scriptUtxos = await provider.fetchAddressUTxOs(GIFT_SCRIPT_ADDRESS);
-  const utxos = scriptUtxos.filter((u) => u.input.txHash === lockTxHash);
+  return scriptUtxos.filter((u) => u.input.txHash === lockTxHash);
+}
+
+/** Find the still-unclaimed envelope UTxOs for a gift, by gift code. */
+export async function getGiftEnvelopes(code: string): Promise<GiftEnvelopes> {
+  const { t: lockTxHash } = decodeGiftCode(code);
+  const utxos = await fetchEnvelopesByTx(lockTxHash);
   return { utxos, count: utxos.length, totalLovelace: sumLovelace(utxos) };
+}
+
+export interface OwnedGift {
+  /** Lock transaction hash — the gift's identifier. */
+  lockTxHash: string;
+  /** Number of unclaimed envelopes still locked. */
+  count: number;
+  /** Total ADA (in lovelace) still locked across those envelopes. */
+  totalLovelace: bigint;
+  /** Refund deadline (POSIX ms) read from the on-chain datum. */
+  deadlineMs: number;
+}
+
+/**
+ * Discover the gifts created by the connected wallet, purely from chain state:
+ * read every envelope at the script address, keep those whose datum `owner`
+ * matches this wallet, and group them by their lock transaction.
+ */
+export async function listOwnedGifts(
+  wallet: BrowserWallet,
+): Promise<OwnedGift[]> {
+  const owner = deserializeAddress(await wallet.getChangeAddress()).pubKeyHash;
+  const provider = getProvider();
+  const utxos = await provider.fetchAddressUTxOs(GIFT_SCRIPT_ADDRESS);
+
+  const groups = new Map<string, OwnedGift>();
+  for (const u of utxos) {
+    if (!u.output.plutusData) continue;
+    let datum: { fields: Array<{ bytes?: string; int?: bigint }> };
+    try {
+      datum = deserializeDatum(u.output.plutusData);
+    } catch {
+      continue; // not a GiftDatum we recognize
+    }
+    const datumOwner = datum.fields?.[1]?.bytes;
+    if (datumOwner !== owner) continue;
+    const deadlineMs = Number(datum.fields?.[2]?.int ?? 0);
+
+    const key = u.input.txHash;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.count += 1;
+      existing.totalLovelace += lovelaceOf(u);
+    } else {
+      groups.set(key, {
+        lockTxHash: key,
+        count: 1,
+        totalLovelace: lovelaceOf(u),
+        deadlineMs,
+      });
+    }
+  }
+  return Array.from(groups.values()).sort((a, b) => a.deadlineMs - b.deadlineMs);
 }
 
 function addCollateral(
@@ -184,17 +245,17 @@ export async function claimGift(
  */
 export async function refundGift(
   wallet: BrowserWallet,
-  code: string,
+  lockTxHash: string,
+  deadlineMs: number,
 ): Promise<string> {
-  const { d: deadlineMs } = decodeGiftCode(code);
   if (!deadlineMs) {
-    throw new Error("This gift code has no deadline, so it cannot be refunded.");
+    throw new Error("This gift has no deadline, so it cannot be refunded.");
   }
   if (Date.now() < deadlineMs) {
     throw new Error("The refund deadline has not passed yet.");
   }
 
-  const { utxos } = await getGiftEnvelopes(code);
+  const utxos = await fetchEnvelopesByTx(lockTxHash);
   if (utxos.length === 0) {
     throw new Error("Nothing left to refund for this gift.");
   }
