@@ -1,0 +1,14 @@
+node_modules/
+
+# SQLite data
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Local env files (keep .env.example tracked)
+.env
+.env.*
+!.env.example
+
+*.log
