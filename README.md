@@ -37,8 +37,8 @@ claim their lucky money straight to their Cardano wallet.
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (18+ recommended). Install via
-  [nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+- [Bun](https://bun.sh/) (the project ships with a `bun.lockb` lockfile).
+  Install it with `curl -fsSL https://bun.sh/install | bash`.
 - A CIP-30 compatible Cardano browser wallet extension (e.g. Nami, Eternl, Lace).
 
 ### Installation
@@ -48,24 +48,24 @@ claim their lucky money straight to their Cardano wallet.
 git clone <YOUR_GIT_URL>
 cd lucky-lunar-gifts
 
-# Install dependencies (npm, or use bun — a bun.lockb is included)
-npm install
+# Install dependencies
+bun install
 
 # Start the development server (http://localhost:8080)
-npm run dev
+bun run dev
 ```
 
 ## 📜 Available Scripts
 
 | Command             | Description                                      |
 | ------------------- | ------------------------------------------------ |
-| `npm run dev`       | Start the Vite dev server on port 8080           |
-| `npm run build`     | Build for production                             |
-| `npm run build:dev` | Build using development mode                      |
-| `npm run preview`   | Preview the production build locally             |
-| `npm run lint`      | Run ESLint                                        |
-| `npm run test`      | Run the test suite once with Vitest              |
-| `npm run test:watch`| Run tests in watch mode                          |
+| `bun run dev`       | Start the Vite dev server on port 8080           |
+| `bun run build`     | Build for production                             |
+| `bun run build:dev` | Build using development mode                      |
+| `bun run preview`   | Preview the production build locally             |
+| `bun run lint`      | Run ESLint                                        |
+| `bun run test`      | Run the test suite once with Vitest              |
+| `bun run test:watch`| Run tests in watch mode                          |
 
 ## 📂 Project Structure
 
@@ -106,5 +106,5 @@ src/
 
 ## 🤝 Contributing
 
-Issues and pull requests are welcome. Please run `npm run lint` and
-`npm run test` before submitting changes.
+Issues and pull requests are welcome. Please run `bun run lint` and
+`bun run test` before submitting changes.
