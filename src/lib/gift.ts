@@ -42,11 +42,26 @@ export interface CreateGiftParams {
   deadlineMs: number;
 }
 
+export interface GiftRegistration {
+  lockTxHash: string;
+  code: string;
+  ownerAddress: string;
+  hint: string[];
+  secretHash: string;
+  totalEnvelopes: number;
+  totalLovelace: string;
+  deadlineMs: number;
+  network: string;
+}
+
 export interface CreateGiftResult {
   /** Lock transaction hash. */
   txHash: string;
   /** Shareable gift code (encodes tx hash, puzzle hint and deadline). */
   code: string;
+  /** Everything the backend needs to register the gift (title/message are
+   *  added by the caller). */
+  registration: GiftRegistration;
 }
 
 /**
@@ -69,11 +84,12 @@ export async function createGift(
   const datum = mConStr0([secretHash, owner, deadlineMs]);
 
   const txBuilder = getTxBuilder();
+  let totalLovelace = 0n;
   for (const ada of envelopeAmountsAda) {
+    const quantity = adaToLovelace(ada);
+    totalLovelace += BigInt(quantity);
     txBuilder
-      .txOut(GIFT_SCRIPT_ADDRESS, [
-        { unit: "lovelace", quantity: adaToLovelace(ada) },
-      ])
+      .txOut(GIFT_SCRIPT_ADDRESS, [{ unit: "lovelace", quantity }])
       .txOutInlineDatumValue(datum);
   }
 
@@ -86,13 +102,22 @@ export async function createGift(
   const signedTx = await wallet.signTx(unsignedTx);
   const txHash = await wallet.submitTx(signedTx);
 
-  const code = encodeGiftCode({
-    t: txHash,
-    h: scrambleWord(secret),
-    d: deadlineMs,
-  });
+  const hint = scrambleWord(secret);
+  const code = encodeGiftCode({ t: txHash, h: hint, d: deadlineMs });
 
-  return { txHash, code };
+  const registration: GiftRegistration = {
+    lockTxHash: txHash,
+    code,
+    ownerAddress: changeAddress,
+    hint,
+    secretHash,
+    totalEnvelopes: envelopeAmountsAda.length,
+    totalLovelace: totalLovelace.toString(),
+    deadlineMs,
+    network: NETWORK,
+  };
+
+  return { txHash, code, registration };
 }
 
 export interface GiftEnvelopes {

@@ -21,6 +21,8 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { isConfigured, NETWORK } from "@/lib/cardano";
 import { createGift, daysFromNow, lovelaceToAda } from "@/lib/gift";
+import { isBackendEnabled, registerGift } from "@/lib/api";
+import { Textarea } from "@/components/ui/textarea";
 
 interface GiftItem {
   id: string;
@@ -36,6 +38,8 @@ const CreateGift = () => {
   const configured = isConfigured();
 
   const [secretWord, setSecretWord] = useState("");
+  const [title, setTitle] = useState("");
+  const [message, setMessage] = useState("");
   const [giftItems, setGiftItems] = useState<GiftItem[]>([
     { id: crypto.randomUUID(), amount: "", count: "1" },
   ]);
@@ -110,7 +114,7 @@ const CreateGift = () => {
 
     setSubmitting(true);
     try {
-      const { code } = await createGift(wallet, {
+      const { code, registration } = await createGift(wallet, {
         secret: secretWord,
         envelopeAmountsAda,
         deadlineMs: daysFromNow(REFUND_DEADLINE_DAYS),
@@ -118,6 +122,23 @@ const CreateGift = () => {
       setGiftCode(code);
       toast.success("Gift created! Share the code below.");
       refreshBalance();
+
+      // Best-effort: register the gift's metadata with the backend. The gift is
+      // already on-chain and claimable via the code regardless of this.
+      if (isBackendEnabled()) {
+        try {
+          await registerGift({
+            ...registration,
+            title: title.trim() || undefined,
+            message: message.trim() || undefined,
+          });
+        } catch (err) {
+          console.error("Failed to register gift metadata:", err);
+          toast.warning(
+            "Gift is on-chain, but saving its title/message failed. The code still works.",
+          );
+        }
+      }
     } catch (err) {
       console.error("Failed to create gift:", err);
       toast.error(err instanceof Error ? err.message : "Failed to create gift.");
@@ -225,6 +246,41 @@ const CreateGift = () => {
             transition={{ delay: 0.2 }}
             onSubmit={handleSubmit}
           >
+            {/* Gift details (stored via the backend, if configured) */}
+            {isBackendEnabled() && (
+              <Card className="mb-6">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Gift Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="title" className="text-xs text-muted-foreground">
+                      Title <span className="font-normal">(optional)</span>
+                    </Label>
+                    <Input
+                      id="title"
+                      placeholder="Tết lì xì 🧧"
+                      maxLength={100}
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="message" className="text-xs text-muted-foreground">
+                      Message <span className="font-normal">(optional)</span>
+                    </Label>
+                    <Textarea
+                      id="message"
+                      placeholder="A note for your recipients..."
+                      maxLength={500}
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Secret Word */}
             <Card className="mb-6">
               <CardHeader className="pb-3">

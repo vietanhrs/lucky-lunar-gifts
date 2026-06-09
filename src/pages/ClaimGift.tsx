@@ -8,11 +8,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { Send, Gift, Loader2, Check, AlertCircle, Wallet } from "lucide-react";
+import { Send, Gift, Loader2, Check, AlertCircle, Wallet, Users } from "lucide-react";
 import { toast } from "sonner";
 import { isConfigured, NETWORK } from "@/lib/cardano";
 import { decodeGiftCode } from "@/lib/giftCode";
 import { claimGift, getGiftEnvelopes, lovelaceToAda } from "@/lib/gift";
+import {
+  fetchGift,
+  isBackendEnabled,
+  recordClaim,
+  type ApiClaim,
+  type ApiGift,
+} from "@/lib/api";
 
 const ClaimGift = () => {
   const [searchParams] = useSearchParams();
@@ -21,22 +28,36 @@ const ClaimGift = () => {
   const configured = isConfigured();
 
   const [answer, setAnswer] = useState("");
+  const [claimerName, setClaimerName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [claimedTx, setClaimedTx] = useState<string | null>(null);
   const [envelopes, setEnvelopes] = useState<{
     count: number;
     totalAda: number;
+    totalLovelace: string;
   } | null>(null);
   const [loadingEnvelopes, setLoadingEnvelopes] = useState(false);
+  const [meta, setMeta] = useState<ApiGift | null>(null);
+  const [claims, setClaims] = useState<ApiClaim[]>([]);
 
-  // The scrambled characters travel inside the gift code (never the solution).
+  const lockTxHash = useMemo(() => {
+    try {
+      return decodeGiftCode(code).t;
+    } catch {
+      return "";
+    }
+  }, [code]);
+
+  // Prefer the backend's hint (also stored on-chain-adjacent); fall back to the
+  // scrambled characters carried inside the gift code.
   const hint = useMemo(() => {
+    if (meta?.hint?.length) return meta.hint;
     try {
       return decodeGiftCode(code).h;
     } catch {
       return [];
     }
-  }, [code]);
+  }, [code, meta]);
 
   const shuffledDisplay = hint.length > 0 ? "/" + hint.join("/") : "";
 
@@ -45,7 +66,11 @@ const ClaimGift = () => {
     setLoadingEnvelopes(true);
     try {
       const { count, totalLovelace } = await getGiftEnvelopes(code);
-      setEnvelopes({ count, totalAda: lovelaceToAda(totalLovelace) });
+      setEnvelopes({
+        count,
+        totalAda: lovelaceToAda(totalLovelace),
+        totalLovelace: totalLovelace.toString(),
+      });
     } catch (err) {
       console.error("Failed to load gift:", err);
     } finally {
@@ -53,9 +78,19 @@ const ClaimGift = () => {
     }
   }, [code, configured]);
 
+  const loadMeta = useCallback(async () => {
+    if (!isBackendEnabled() || !lockTxHash) return;
+    const data = await fetchGift(lockTxHash);
+    if (data) {
+      setMeta(data.gift);
+      setClaims(data.claims);
+    }
+  }, [lockTxHash]);
+
   useEffect(() => {
     loadEnvelopes();
-  }, [loadEnvelopes]);
+    loadMeta();
+  }, [loadEnvelopes, loadMeta]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +101,20 @@ const ClaimGift = () => {
       setClaimedTx(txHash);
       toast.success("Claimed! The lucky money is on its way to your wallet. 🧧");
       refreshBalance();
+
+      // Best-effort: record the claim (and claimer name) with the backend.
+      if (isBackendEnabled() && lockTxHash) {
+        try {
+          await recordClaim(lockTxHash, {
+            claimerName: claimerName.trim() || undefined,
+            claimerAddress: await wallet.getChangeAddress(),
+            claimTxHash: txHash,
+            amountLovelace: envelopes?.totalLovelace ?? "0",
+          });
+        } catch (err) {
+          console.error("Failed to record claim metadata:", err);
+        }
+      }
     } catch (err) {
       console.error("Failed to claim gift:", err);
       toast.error(
@@ -84,8 +133,11 @@ const ClaimGift = () => {
         className="max-w-2xl mx-auto"
       >
         <h1 className="text-2xl font-bold text-gradient-peach mb-2">
-          🧧 Claim Your Lucky ADA
+          {meta?.title ? meta.title : "🧧 Claim Your Lucky ADA"}
         </h1>
+        {meta?.message && (
+          <p className="text-foreground mb-2 whitespace-pre-wrap">{meta.message}</p>
+        )}
         <p className="text-muted-foreground mb-6 break-all">
           Gift code: <span className="font-mono text-foreground">{code || "—"}</span>
         </p>
@@ -208,6 +260,24 @@ const ClaimGift = () => {
                       className="mt-1 text-lg font-bold"
                     />
                   </div>
+                  {isBackendEnabled() && (
+                    <div>
+                      <Label htmlFor="claimerName" className="text-sm font-medium">
+                        Your Name{" "}
+                        <span className="text-muted-foreground font-normal">
+                          (optional)
+                        </span>
+                      </Label>
+                      <Input
+                        id="claimerName"
+                        placeholder="Let the gift owner know who you are..."
+                        maxLength={60}
+                        value={claimerName}
+                        onChange={(e) => setClaimerName(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
                   <Button
                     type="submit"
                     className="w-full gradient-peach text-primary-foreground shadow-peach hover:shadow-peach-lg transition-shadow rounded-xl"
@@ -234,6 +304,44 @@ const ClaimGift = () => {
                 </CardContent>
               </Card>
             </form>
+
+            {/* Recipients who've already claimed (from the backend) */}
+            {claims.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    Claimed by ({claims.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {claims.map((claim) => (
+                      <div
+                        key={claim.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-secondary/50"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-sm">
+                            {claim.claimerName || "Anonymous"}
+                          </div>
+                          <div className="text-xs text-muted-foreground font-mono truncate">
+                            {claim.claimerAddress}
+                          </div>
+                        </div>
+                        <div className="text-sm font-bold text-primary ml-4">
+                          {lovelaceToAda(claim.amountLovelace).toLocaleString(
+                            undefined,
+                            { maximumFractionDigits: 2 }
+                          )}{" "}
+                          ₳
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
       </motion.div>
