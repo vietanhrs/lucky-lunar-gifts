@@ -89,8 +89,21 @@ calls are **best-effort** — the dApp works fully on-chain without it.
 | `bun run build:dev` | Build using development mode                      |
 | `bun run preview`   | Preview the production build locally             |
 | `bun run lint`      | Run ESLint                                        |
-| `bun run test`      | Run the test suite once with Vitest              |
-| `bun run test:watch`| Run tests in watch mode                          |
+| `bun run test`      | Run unit tests once with Vitest                  |
+| `bun run test:watch`| Run unit tests in watch mode                     |
+| `bun run e2e`       | Run Playwright end-to-end tests                  |
+| `bun run e2e:report`| Open the last Playwright HTML report             |
+
+## 🧪 Testing
+
+- **Unit / component tests** (Vitest + Testing Library) live next to the code in
+  `src/**/*.test.ts(x)` — pure logic (`secret`, `giftCode`, the API client) and
+  component/navigation tests (`Index`, `Layout`). Run with `bun run test`.
+- **End-to-end tests** (Playwright) live in [`e2e/`](./e2e) and drive the real
+  app in a browser, covering wallet-free flows: home, navigation, and rendering
+  the claim-page puzzle from a gift code. Run with `bun run e2e` (Playwright
+  starts the dev server automatically). In sandboxes that can't download the
+  Playwright browser, set `PW_EXECUTABLE_PATH` to a pre-installed Chromium.
 
 ## 📂 Project Structure
 
