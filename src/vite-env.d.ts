@@ -3,6 +3,7 @@
 interface ImportMetaEnv {
   readonly VITE_CARDANO_NETWORK?: "mainnet" | "preprod" | "preview";
   readonly VITE_BLOCKFROST_PROJECT_ID?: string;
+  readonly VITE_API_BASE_URL?: string;
 }
 
 interface ImportMeta {

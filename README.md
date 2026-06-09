@@ -64,14 +64,21 @@ On-chain features (creating and claiming gifts) require a
 [Blockfrost](https://blockfrost.io) project. Copy `.env.example` to `.env` and
 fill in:
 
-| Variable                     | Description                                              |
-| ---------------------------- | -------------------------------------------------------- |
-| `VITE_CARDANO_NETWORK`       | `mainnet`, `preprod`, or `preview`                       |
-| `VITE_BLOCKFROST_PROJECT_ID` | Blockfrost project ID for the **same** network           |
+| Variable                     | Description                                                       |
+| ---------------------------- | ---------------------------------------------------------------- |
+| `VITE_CARDANO_NETWORK`       | `mainnet`, `preprod`, or `preview`                               |
+| `VITE_BLOCKFROST_PROJECT_ID` | Blockfrost project ID for the **same** network                  |
+| `VITE_API_BASE_URL`          | Optional. Base URL of the [backend service](./server) for gift titles/messages, the puzzle hint, and the recipients list. Leave empty to run purely on-chain. |
 
 The compiled validator (`src/contracts/plutus.json`) is vendored from the
 [`contracts/`](./contracts) Aiken project. Re-run `aiken build` and copy the
 updated blueprint into `src/contracts/` whenever the validator changes.
+
+The optional [backend service](./server) stores metadata that can't live
+on-chain. When `VITE_API_BASE_URL` is set, the client registers a gift's
+title/message after creating it, shows them (plus the recipients who've claimed)
+on the claim page, and records each claim with the claimer's name. All backend
+calls are **best-effort** — the dApp works fully on-chain without it.
 
 ## 📜 Available Scripts
 

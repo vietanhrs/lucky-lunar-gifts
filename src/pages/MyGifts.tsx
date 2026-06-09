@@ -10,6 +10,7 @@ import { Wallet, Loader2, AlertCircle, Gift, RefreshCw, Undo2 } from "lucide-rea
 import { toast } from "sonner";
 import { isConfigured, NETWORK } from "@/lib/cardano";
 import { listOwnedGifts, refundGift, lovelaceToAda, type OwnedGift } from "@/lib/gift";
+import { isBackendEnabled, listGiftsByOwner } from "@/lib/api";
 
 function formatDeadline(ms: number): string {
   if (!ms) return "—";
@@ -24,6 +25,7 @@ const MyGifts = () => {
   const configured = isConfigured();
 
   const [gifts, setGifts] = useState<OwnedGift[] | null>(null);
+  const [titles, setTitles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [refundingTx, setRefundingTx] = useState<string | null>(null);
 
@@ -32,6 +34,18 @@ const MyGifts = () => {
     setLoading(true);
     try {
       setGifts(await listOwnedGifts(wallet));
+
+      // Best-effort: enrich with titles from the backend.
+      if (isBackendEnabled()) {
+        try {
+          const owned = await listGiftsByOwner(await wallet.getChangeAddress());
+          const map: Record<string, string> = {};
+          for (const g of owned) if (g.title) map[g.lockTxHash] = g.title;
+          setTitles(map);
+        } catch (err) {
+          console.error("Failed to load gift titles:", err);
+        }
+      }
     } catch (err) {
       console.error("Failed to load gifts:", err);
       toast.error(err instanceof Error ? err.message : "Failed to load gifts.");
@@ -127,6 +141,11 @@ const MyGifts = () => {
                       <CardContent className="pt-6">
                         <div className="flex items-start justify-between gap-4">
                           <div className="min-w-0">
+                            {titles[gift.lockTxHash] && (
+                              <div className="text-sm font-medium text-foreground mb-1 truncate">
+                                {titles[gift.lockTxHash]}
+                              </div>
+                            )}
                             <div className="text-lg font-bold text-primary">
                               {lovelaceToAda(gift.totalLovelace).toLocaleString(
                                 undefined,
