@@ -1,0 +1,104 @@
+{
+  "preamble": {
+    "title": "vietanhrs/lucky-ada",
+    "description": "Aiken contracts for project 'vietanhrs/lucky-ada'",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.22+39d6b04"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "gift.gift.spend",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/gift~1GiftDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/gift~1GiftRedeemer"
+        }
+      },
+      "compiledCode": "59017401010029800aba2aba1aab9faab9eaab9dab9a48888896600264653001300700198039804000cdc3a400530070024888966002600460106ea800e26466453001159800980098059baa00289919192cc004c010c038dd500544cdc79b92375c6022601e6ea8028dd71808801c56600264660020026eb0c048c04cc04cc04cc04cc04cc04cc04cc04cc040dd5004112cc00400629422b30013371e6eb8c04c00400e29462660040046028002807901244c9660026012601e6ea8006266e24dd6980918098019bad30123010375400314a08070c044c03cdd5180898079baa30113012301230123012301230123012300f375400f14a0806900d1bae30100013010001300c3754601c60186ea800a2c805260166ea801e601c0069112cc004c01000a26464b30013014002802c590121bae3012001300f375401515980098040014566002601e6ea802a00716404116403480686018601a0026e1d20003009375400716401c30070013003375400f149a26cac80081",
+      "hash": "a97587656204eab72176a7d457a995c0cf4c7b0e8d19d29e9e9694eb"
+    },
+    {
+      "title": "gift.gift.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "compiledCode": "59017401010029800aba2aba1aab9faab9eaab9dab9a48888896600264653001300700198039804000cdc3a400530070024888966002600460106ea800e26466453001159800980098059baa00289919192cc004c010c038dd500544cdc79b92375c6022601e6ea8028dd71808801c56600264660020026eb0c048c04cc04cc04cc04cc04cc04cc04cc04cc040dd5004112cc00400629422b30013371e6eb8c04c00400e29462660040046028002807901244c9660026012601e6ea8006266e24dd6980918098019bad30123010375400314a08070c044c03cdd5180898079baa30113012301230123012301230123012300f375400f14a0806900d1bae30100013010001300c3754601c60186ea800a2c805260166ea801e601c0069112cc004c01000a26464b30013014002802c590121bae3012001300f375401515980098040014566002601e6ea802a00716404116403480686018601a0026e1d20003009375400716401c30070013003375400f149a26cac80081",
+      "hash": "a97587656204eab72176a7d457a995c0cf4c7b0e8d19d29e9e9694eb"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "aiken/crypto/VerificationKeyHash": {
+      "title": "VerificationKeyHash",
+      "dataType": "bytes"
+    },
+    "gift/GiftDatum": {
+      "title": "GiftDatum",
+      "description": "Datum stored with each locked gift envelope.",
+      "anyOf": [
+        {
+          "title": "GiftDatum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "secret_hash",
+              "description": "sha2-256 hash of the normalized secret word. The off-chain code MUST\n normalize the word (e.g. trim + lowercase) the same way before hashing,\n otherwise the hashes will never match.",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "owner",
+              "description": "The gift owner's verification key hash — the only key allowed to reclaim\n the envelope after the deadline.",
+              "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+            },
+            {
+              "title": "deadline",
+              "description": "POSIX time in milliseconds. On/after this time the owner may refund.",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "gift/GiftRedeemer": {
+      "title": "GiftRedeemer",
+      "anyOf": [
+        {
+          "title": "Claim",
+          "description": "Claim the envelope by revealing the secret word preimage.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "answer",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        },
+        {
+          "title": "Refund",
+          "description": "Owner reclaims the envelope after the deadline has passed.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    }
+  }
+}
