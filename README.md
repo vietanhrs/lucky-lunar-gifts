@@ -51,9 +51,27 @@ cd lucky-lunar-gifts
 # Install dependencies
 bun install
 
+# Configure the blockchain provider (see below)
+cp .env.example .env
+
 # Start the development server (http://localhost:8080)
 bun run dev
 ```
+
+### Configuration
+
+On-chain features (creating and claiming gifts) require a
+[Blockfrost](https://blockfrost.io) project. Copy `.env.example` to `.env` and
+fill in:
+
+| Variable                     | Description                                              |
+| ---------------------------- | -------------------------------------------------------- |
+| `VITE_CARDANO_NETWORK`       | `mainnet`, `preprod`, or `preview`                       |
+| `VITE_BLOCKFROST_PROJECT_ID` | Blockfrost project ID for the **same** network           |
+
+The compiled validator (`src/contracts/plutus.json`) is vendored from the
+[`contracts/`](./contracts) Aiken project. Re-run `aiken build` and copy the
+updated blueprint into `src/contracts/` whenever the validator changes.
 
 ## 📜 Available Scripts
 
@@ -80,8 +98,15 @@ src/
 │   └── WalletConnect.tsx
 ├── contexts/
 │   └── WalletContext.tsx   # Cardano wallet state (connect, balance, etc.)
+├── contracts/
+│   └── plutus.json    # Vendored compiled validator (CIP-57 blueprint)
 ├── hooks/             # Custom hooks
-├── lib/               # Utilities
+├── lib/
+│   ├── cardano.ts     # Provider, network config, script address, tx builder
+│   ├── secret.ts      # Secret-word normalization + sha2-256 hashing
+│   ├── giftCode.ts    # Shareable gift-code encode/decode
+│   ├── gift.ts        # create / claim / refund transaction builders
+│   └── utils.ts
 ├── pages/
 │   ├── Index.tsx      # Home — create or enter a claim code
 │   ├── CreateGift.tsx # Build and fund gift envelopes
@@ -95,14 +120,24 @@ src/
 1. **Connect** your Cardano wallet on the Create page.
 2. **Set a secret word** and add one or more envelopes, each with an ADA amount
    and a quantity.
-3. **Create the gift** and share the resulting claim code.
-4. **Recipients** open the claim link, unscramble the secret word, and receive
-   ADA in their wallet.
+3. **Create the gift.** The client locks the ADA into the `gift` validator —
+   one script UTxO per envelope, each carrying `sha2_256(secret)` — and returns
+   a shareable gift code.
+4. **Recipients** open the claim link, unscramble the secret word, connect a
+   wallet, and submit a claim transaction that spends the envelopes to their
+   address (the validator checks `sha2_256(answer) == secret_hash`).
+5. **Refund:** after the deadline, the owner can reclaim any unclaimed
+   envelopes.
 
-> **Note:** Wallet connection and balance reading are wired up via the Mesh
-> SDK. The gift-creation and claim transaction flows are scaffolded (the
-> submit handlers and the claim page currently use placeholder/mock data) and
-> are intended to be connected to on-chain logic.
+The on-chain logic lives in [`contracts/`](./contracts); the off-chain
+transaction building (lock / claim / refund) lives in
+[`src/lib/gift.ts`](./src/lib/gift.ts) and is built with the Mesh SDK.
+
+> **Note:** The shareable gift code carries the lock transaction hash, the
+> deadline, and the *scrambled* characters of the secret (the puzzle hint) —
+> never the solution. The secret word stays off-chain; only its hash is stored.
+> Because the validator is a hash-lock, once the first claim reveals the
+> preimage on-chain, anyone could claim the remaining envelopes of that gift.
 
 ## 🤝 Contributing
 

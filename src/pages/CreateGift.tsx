@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { WalletConnect } from "@/components/WalletConnect";
 import { useWallet } from "@/contexts/WalletContext";
@@ -6,8 +7,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, Wallet, AlertCircle } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Wallet,
+  AlertCircle,
+  Loader2,
+  Copy,
+  Check,
+  ArrowRight,
+} from "lucide-react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+import { isConfigured, NETWORK } from "@/lib/cardano";
+import { createGift, daysFromNow, lovelaceToAda } from "@/lib/gift";
 
 interface GiftItem {
   id: string;
@@ -15,18 +28,20 @@ interface GiftItem {
   count: string;
 }
 
-function lovelaceToAda(lovelace: string): number {
-  return parseInt(lovelace || "0", 10) / 1_000_000;
-}
+const REFUND_DEADLINE_DAYS = 30;
 
 const CreateGift = () => {
-  const { wallet, address, lovelace } = useWallet();
+  const { wallet, lovelace, refreshBalance } = useWallet();
   const adaBalance = lovelaceToAda(lovelace);
+  const configured = isConfigured();
 
   const [secretWord, setSecretWord] = useState("");
   const [giftItems, setGiftItems] = useState<GiftItem[]>([
     { id: crypto.randomUUID(), amount: "", count: "1" },
   ]);
+  const [submitting, setSubmitting] = useState(false);
+  const [giftCode, setGiftCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const addGiftItem = () => {
     setGiftItems((prev) => [
@@ -41,9 +56,7 @@ const CreateGift = () => {
 
   const updateGiftItem = (id: string, field: "amount" | "count", value: string) => {
     setGiftItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, [field]: value } : item
-      )
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     );
   };
 
@@ -64,12 +77,53 @@ const CreateGift = () => {
 
   const estimatedFee = totalEnvelopes * 0.5;
   const totalRequired = totalAdaGifted + estimatedFee;
-  const hasInsufficientBalance = wallet && totalRequired > adaBalance && totalRequired > 0;
+  const hasInsufficientBalance =
+    wallet && totalRequired > adaBalance && totalRequired > 0;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const shareUrl = giftCode
+    ? `${window.location.origin}/claim?code=${encodeURIComponent(giftCode)}`
+    : "";
+
+  const copyCode = async () => {
+    if (!giftCode) return;
+    await navigator.clipboard.writeText(giftCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Submit function left empty for now
-    console.log("Submit gift:", { secretWord, giftItems });
+    if (!wallet || submitting) return;
+
+    // Expand each line item into one amount per envelope.
+    const envelopeAmountsAda: number[] = [];
+    for (const item of giftItems) {
+      const amount = parseFloat(item.amount);
+      const count = parseInt(item.count) || 0;
+      if (!(amount > 0) || count <= 0) continue;
+      for (let i = 0; i < count; i++) envelopeAmountsAda.push(amount);
+    }
+    if (envelopeAmountsAda.length === 0) {
+      toast.error("Add at least one envelope with an amount.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { code } = await createGift(wallet, {
+        secret: secretWord,
+        envelopeAmountsAda,
+        deadlineMs: daysFromNow(REFUND_DEADLINE_DAYS),
+      });
+      setGiftCode(code);
+      toast.success("Gift created! Share the code below.");
+      refreshBalance();
+    } catch (err) {
+      console.error("Failed to create gift:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to create gift.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -83,12 +137,26 @@ const CreateGift = () => {
           🧧 Create a Lucky Gift
         </h1>
 
+        {!configured && (
+          <div className="mb-6 flex items-start gap-2 rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>
+              Blockfrost isn't configured. Set <code>VITE_BLOCKFROST_PROJECT_ID</code>{" "}
+              and <code>VITE_CARDANO_NETWORK</code> in your <code>.env</code> file
+              to create and claim gifts on-chain.
+            </span>
+          </div>
+        )}
+
         {/* Wallet Section */}
         <Card className="mb-6">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Wallet className="h-4 w-4 text-primary" />
               Wallet
+              <span className="ml-auto text-xs font-normal text-muted-foreground capitalize">
+                {NETWORK}
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -109,8 +177,48 @@ const CreateGift = () => {
           </CardContent>
         </Card>
 
+        {/* Success / result */}
+        {giftCode && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card className="mb-6 border-primary/40">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Check className="h-4 w-4 text-primary" />
+                  Gift created!
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Share this gift code with your recipients. They'll solve the
+                  secret-word puzzle to claim their lucky money.
+                </p>
+                <div className="flex gap-2">
+                  <Input readOnly value={giftCode} className="font-mono text-xs" />
+                  <Button type="button" variant="outline" size="icon" onClick={copyCode}>
+                    {copied ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <Button asChild variant="secondary" className="w-full">
+                  <Link to={`/claim?code=${encodeURIComponent(giftCode)}`}>
+                    Open claim page
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+                <p className="text-xs text-muted-foreground break-all">{shareUrl}</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
         {/* Gift Form */}
-        {wallet && (
+        {wallet && !giftCode && (
           <motion.form
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -141,52 +249,39 @@ const CreateGift = () => {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">Gift Envelopes</CardTitle>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addGiftItem}
-                  >
+                  <Button type="button" variant="outline" size="sm" onClick={addGiftItem}>
                     <Plus className="h-4 w-4 mr-1" />
                     Add
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {giftItems.map((item, index) => (
+                {giftItems.map((item) => (
                   <div
                     key={item.id}
                     className="flex items-end gap-3 p-3 rounded-lg bg-secondary/50"
                   >
                     <div className="flex-1">
-                      <Label className="text-xs text-muted-foreground">
-                        Amount (₳)
-                      </Label>
+                      <Label className="text-xs text-muted-foreground">Amount (₳)</Label>
                       <Input
                         type="number"
                         min="0"
                         step="0.01"
                         placeholder="10"
                         value={item.amount}
-                        onChange={(e) =>
-                          updateGiftItem(item.id, "amount", e.target.value)
-                        }
+                        onChange={(e) => updateGiftItem(item.id, "amount", e.target.value)}
                         required
                       />
                     </div>
                     <div className="w-28">
-                      <Label className="text-xs text-muted-foreground">
-                        Envelopes
-                      </Label>
+                      <Label className="text-xs text-muted-foreground">Envelopes</Label>
                       <Input
                         type="number"
                         min="1"
                         step="1"
                         placeholder="1"
                         value={item.count}
-                        onChange={(e) =>
-                          updateGiftItem(item.id, "count", e.target.value)
-                        }
+                        onChange={(e) => updateGiftItem(item.id, "count", e.target.value)}
                         required
                       />
                     </div>
@@ -238,9 +333,21 @@ const CreateGift = () => {
               type="submit"
               size="lg"
               className="w-full gradient-peach text-primary-foreground shadow-peach hover:shadow-peach-lg transition-shadow rounded-xl"
-              disabled={!!hasInsufficientBalance || !secretWord.trim()}
+              disabled={
+                !!hasInsufficientBalance ||
+                !secretWord.trim() ||
+                !configured ||
+                submitting
+              }
             >
-              Create Gift 🧧
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating gift...
+                </>
+              ) : (
+                "Create Gift 🧧"
+              )}
             </Button>
           </motion.form>
         )}
