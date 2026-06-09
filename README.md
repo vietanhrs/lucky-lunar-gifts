@@ -1,73 +1,110 @@
-# Welcome to your Lovable project
+# 🧧 Lucky ADA
 
-## Project info
+> Send lucky money (lì xì) this Lunar New Year — on Cardano.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Lucky ADA is a web dApp for gifting ADA in digital red envelopes. Create a
+batch of gift envelopes, protect them with a secret-word puzzle, and share a
+claim code with friends and family. Recipients unscramble the secret word to
+claim their lucky money straight to their Cardano wallet.
 
-## How can I edit this code?
+## ✨ Features
 
-There are several ways of editing your application.
+- **Create gifts** — fund one or more red envelopes with ADA from your
+  connected Cardano wallet, with a live summary of the total amount and
+  estimated transaction fees.
+- **Secret-word quiz** — protect each gift with a word or phrase. Recipients
+  must rearrange shuffled characters to guess it before they can claim.
+- **Claim by code** — anyone with a gift code can open the claim page, solve
+  the puzzle, and receive ADA.
+- **Cardano wallet integration** — connect any CIP-30 browser wallet (Nami,
+  Eternl, Lace, etc.) via the [Mesh SDK](https://meshjs.dev/).
+- **Light & dark themes** with a festive peach-blossom aesthetic.
 
-**Use Lovable**
+## 🛠️ Tech Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+- [Vite](https://vitejs.dev/) + [React 18](https://react.dev/) +
+  [TypeScript](https://www.typescriptlang.org/)
+- [Mesh SDK](https://meshjs.dev/) (`@meshsdk/core`, `@meshsdk/react`) for
+  Cardano wallet connectivity
+- [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)
+  (Radix UI primitives)
+- [React Router](https://reactrouter.com/) for routing
+- [TanStack Query](https://tanstack.com/query) for data fetching
+- [Framer Motion](https://www.framer.com/motion/) for animations
+- [Vitest](https://vitest.dev/) + Testing Library for tests
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🚀 Getting Started
 
-**Use your preferred IDE**
+### Prerequisites
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- [Node.js](https://nodejs.org/) (18+ recommended). Install via
+  [nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+- A CIP-30 compatible Cardano browser wallet extension (e.g. Nami, Eternl, Lace).
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Installation
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Clone the repository
 git clone <YOUR_GIT_URL>
+cd lucky-lunar-gifts
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Install dependencies (npm, or use bun — a bun.lockb is included)
+npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the development server (http://localhost:8080)
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## 📜 Available Scripts
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+| Command             | Description                                      |
+| ------------------- | ------------------------------------------------ |
+| `npm run dev`       | Start the Vite dev server on port 8080           |
+| `npm run build`     | Build for production                             |
+| `npm run build:dev` | Build using development mode                      |
+| `npm run preview`   | Preview the production build locally             |
+| `npm run lint`      | Run ESLint                                        |
+| `npm run test`      | Run the test suite once with Vitest              |
+| `npm run test:watch`| Run tests in watch mode                          |
 
-**Use GitHub Codespaces**
+## 📂 Project Structure
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```
+src/
+├── assets/            # Images (hero, etc.)
+├── components/        # Shared components
+│   ├── ui/            # shadcn/ui primitives
+│   ├── Layout.tsx     # Page layout shell
+│   ├── NavLink.tsx
+│   ├── ThemeSwitcher.tsx
+│   └── WalletConnect.tsx
+├── contexts/
+│   └── WalletContext.tsx   # Cardano wallet state (connect, balance, etc.)
+├── hooks/             # Custom hooks
+├── lib/               # Utilities
+├── pages/
+│   ├── Index.tsx      # Home — create or enter a claim code
+│   ├── CreateGift.tsx # Build and fund gift envelopes
+│   ├── ClaimGift.tsx  # Solve the puzzle and claim a gift
+│   └── NotFound.tsx
+└── App.tsx            # Routes and providers
+```
 
-## What technologies are used for this project?
+## 🧭 How It Works
 
-This project is built with:
+1. **Connect** your Cardano wallet on the Create page.
+2. **Set a secret word** and add one or more envelopes, each with an ADA amount
+   and a quantity.
+3. **Create the gift** and share the resulting claim code.
+4. **Recipients** open the claim link, unscramble the secret word, and receive
+   ADA in their wallet.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+> **Note:** Wallet connection and balance reading are wired up via the Mesh
+> SDK. The gift-creation and claim transaction flows are scaffolded (the
+> submit handlers and the claim page currently use placeholder/mock data) and
+> are intended to be connected to on-chain logic.
 
-## How can I deploy this project?
+## 🤝 Contributing
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Issues and pull requests are welcome. Please run `npm run lint` and
+`npm run test` before submitting changes.
